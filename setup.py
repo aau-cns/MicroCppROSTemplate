@@ -35,12 +35,15 @@
 
 import os
 import argparse
+import datetime
+import itertools
 
 #
 # Global variables
 #
 
-USER = os.getenv('USER');
+USER = os.getenv('USER')
+TIME = datetime.datetime.now()
 
 #
 # Functions
@@ -321,18 +324,40 @@ target_link_libraries(${{PROJECT_NAME}}_{node} ${{thirdparty_libraries}})
 	# Create and write file
 	create_write_file(package_path, "CMakeLists.txt", content)
 
-def write_node_cpp(package_path, node) :
+def write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscribe_messages, publish_messages) :
 	
-	# Define file content
-	content = f"""/// Copyright (C) 2021 {USER}.
+	# Define license header
+	license_header = f"""/// Copyright (C) {TIME.year} {USER}.
 ///
-/// You can contact the author at {USER}@email.com
+/// You can contact the author at {USER}@email.com\n\n"""
 
-#include <ros/ros.h>
-#include <std_msgs/String.h>
-#include <sensor_msgs/Imu.h>
 
-// Callback functions
+	# Check if some messages are specified exist
+	if publish_messages != None and subscribe_messages != None :
+	
+		# Build a single include_messages array without duplicates by jsut
+		# merging the different lists and converting to a set and then back to list
+		include_messages = list(set(subscribe_messages + publish_messages))
+		
+		# Define include section
+		includes = "#include <ros/ros.h>\n"
+		for message in include_messages :
+			includes += f"#include <{message}.h>\n"
+
+	# Check if subscribed topics exist
+	if subscribe_topics != None and subscribe_messages != None :
+		assert len(subscribe_topics) == len(subscribe_messages)
+
+		# Define callbacks for each subscribed topic
+		callbacks = "\n// Callback functions\n" 
+		for (topic, message) in zip(subscribe_topics, subscribe_messages) :
+			msg = message.split("/")
+			callbacks += f"void callback_{msg[1]}(const {msg[0]}::msg[1]::ConstPtr& msg);\n"
+
+	# Define file content	
+	content = license_header + includes + callbacks + f"""
+
+
 void callback_imu(const sensor_msgs::Imu::ConstPtr& msg);
 
 // Main function
@@ -412,22 +437,34 @@ if __name__ == "__main__":
 	parser.add_argument('-w', '--workspace', help='Path of the workspace to be created', default="~/cws")
 	parser.add_argument('-p', '--package', help='Name of the ROS package', default="not specified", required=True)
 	parser.add_argument('-n', '--node', help='Name of the ROS node', default="not specified", required=True)
-	parser.add_argument('-t', '--topics', help='Array of topics (topic_1 topic_2 ... topic_N)', nargs='+')
-	parser.add_argument('-m', '--messages', help='Array of message types for each specified topic (message_1 message_2 ... message_N)', nargs='+')
+	parser.add_argument('-st', '--subscribe_topics', help='Array of topics (topic_1 topic_2 ... topic_N) to subscribe on', nargs='+')
+	parser.add_argument('-sm', '--subscribe_messages', help='Array of message types for each specified subscribe_topic (message_1 message_2 ... message_N). Messages has to be specified with their full name, e.g., sensor_msgs/Imu', nargs='+')	
+	parser.add_argument('-pt', '--publish_topics', help='Array of topics (topic_1 topic_2 ... topic_N) to publish on', nargs='+')
+	parser.add_argument('-pm', '--publish_messages', help='Array of message types for each specified publish_topic (message_1 message_2 ... message_N). Messages has to be specified with their full name, e.g., sensor_msgs/Imu', nargs='+')
 	args = parser.parse_args()
 
 	# Declare variables
 	workspace = args.workspace
 	package = args.package
 	node = args.node
-	topics = ""
-	messages = ""
+	subscribe_topics = []
+	publish_topics = []
+	subscribe_messages = []
+	publish_messages = []
 
-	# Built string with topics and messages for visualization	
-	for topic in args.topics :
-		topics += "[" + topic + "] "
-	for message in args.messages :
-		messages += "[" + message + "] "
+	# Built string with topics and messages for visualization
+	if args.subscribe_topics != None :
+		for topic in args.subscribe_topics :
+			subscribe_topics.append(topic)
+	if args.subscribe_messages != None :
+		for message in args.subscribe_messages :
+			subscribe_messages.append(message)
+	if args.publish_topics != None :
+		for topic in args.publish_topics :
+			publish_topics.append(topic)
+	if args.publish_messages != None :
+		for message in args.publish_messages :
+			publish_messages.append(message)
 
 	# Visualize input arguments
 	print("\n----------------------------------------")
@@ -435,12 +472,19 @@ if __name__ == "__main__":
 	print(f" - Workspace: {workspace}")
 	print(f" - Package: {package}")
 	print(f" - Node: {node}")
-	print(f" - Topics: {topics}")
-	print(f" - Messages: {messages}")
+	print(f" - Subscribe topics: {subscribe_topics}")
+	print(f" - Subscribe Messages: {subscribe_messages}")
+	print(f" - Publish topics: {publish_topics}")
+	print(f" - Publish Messages: {publish_messages}")
 	print("----------------------------------------\n")
 
 	# Create folder structure
 	package_path = workspace + "/src/" + package
+
+	# package_path tilde expansion (it makes it understand ~)
+	package_path = os.path.expanduser(package_path)
+
+	# Create folder structure
 	create_folder_structure(package_path)
 
 	# Create and write package.xml
@@ -450,4 +494,4 @@ if __name__ == "__main__":
 	write_CMakeLists(package, package_path, node)
 
 	# Create and write node.cpp
-	write_node_cpp(package_path, node)
+	write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscribe_messages, publish_messages)
