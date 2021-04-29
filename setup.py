@@ -212,7 +212,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   CATKIN_DEPENDS message_runtime std_msgs nav_msgs sensor_msgs geometry_msgs
-#  LIBRARIES library
+#  LIBRARIES custom_libraries
 #  DEPENDS system_lib
 )
 
@@ -237,7 +237,7 @@ list(
 # )
 
 ## Declare a C++ library
-# add_library(custom_libraries ${{custom_libraries_sources}})
+# add_library(custom_libraries SHARED ${{custom_libraries_sources}})
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(custom_libraries ${{thirdparty_libraries}})
@@ -346,57 +346,49 @@ def write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscri
 
 	# Check if subscribed topics exist
 	if subscribe_topics != None and subscribe_messages != None :
-		assert len(subscribe_topics) == len(subscribe_messages)
 
-		# Define callbacks for each subscribed topic
-		callbacks = "\n// Callback functions\n" 
+		# Define subscribers and callbacks for each subscribed topic
+		callbacks = "\n// Callback functions\n"
+		callbacks_implementation = "\n"
+		subscribers = "\n\n  // Subscribers\n"
 		for (topic, message) in zip(subscribe_topics, subscribe_messages) :
 			msg = message.split("/")
-			callbacks += f"void callback_{msg[1]}(const {msg[0]}::msg[1]::ConstPtr& msg);\n"
+			callbacks += f"void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg);\n"
+			callbacks_implementation += "void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg) {" + implement_callbacks(callbacks_implementation, message) + "\n\n}"
+			subscribers += f"  ros::Subscriber sub_{msg[1].lower()} = nh.subscribe({topic}, 999, callback_{msg[1].lower()});\n"
+
+	# Check if published topics exist
+	if publish_topics != None and publish_messages != None :
+	
+		# Define publisher and message variables
+		publishers = "\n  // Publishers\n"
+		publishers_echo = "\n\n  // Print topics where we are publishing on\n  std::cout << std::endl;\n"
+		ros_messages = "\n\n  // Ros messages\n"
+		publish = "\n  // Publish\n"
+		for (topic, message) in zip(publish_topics, publish_messages) :
+			publishers += f"  pub{topic.replace('/','_')} = nh.advertise<{message.replace('/','::')}>(\"{topic}\", 10);"
+			publishers_echo += f"  ROS_INFO(\"Publishing: %s\", pub{topic.replace('/','_')}.getTopic().c_str());\n"
+			ros_messages += f"  {message.replace('/','::')} msg{topic.replace('/','_')}\n"
+			publish += f"  pub{topic.replace('/','_')}.publish(msg{topic.replace('/','_')})\n"
 
 	# Define file content	
 	content = license_header + includes + callbacks + f"""
-
-
-void callback_imu(const sensor_msgs::Imu::ConstPtr& msg);
 
 // Main function
 int main(int argc, char** argv) {{
 
   // Launch ros node
   ros::init(argc, argv, \"{node}\");
-  ros::NodeHandle nh(\"~\");
-
-  // Get parameters from launchfile (the topic where imu is going to be publish)
-  std::string topic_imu;
+  ros::NodeHandle nh(\"~\");""" + subscribers + publishers + publishers_echo + f"""
+  // Parameters from launchfile
+  std::string param;
 
   // Check existance of parameter
-  if(!nh.getParam(\"topic_imu\", topic_imu)) {{
+  if(!nh.getParam(\"param\", param)) {{
     std::cout << std::endl;
-    ROS_ERROR(\"No name_of_param defined\");
+    ROS_ERROR(\"No param defined\");
     std::exit(EXIT_FAILURE);
-  }}
-
-  // Create info publisher
-  ros::Publisher pub = nh.advertise<std_msgs::String>(\"/info\", 1);
-
-  // Print topics where we are publishing on
-  std::cout << std::endl;
-  ROS_INFO(\"Publishing: %s\", pub_params.getTopic().c_str());
-  std::cout << std::endl;
-
-  // Create IMU subscriber
-  ros::Subscriber sub_imu = nh.subscribe(topic_imu, 999, callback_imu);
-
-  // Ros messages
-  std_msgs::String info_msg;
-
-  // Write info message
-  info_msg = \"Subscribing to: \" + topic_imu;
-
-  // Publish
-  pub.publish(info_msg);
-
+  }}""" + ros_messages + publish + f"""
   // ROS Spin
   ros::spin();
 
@@ -405,32 +397,60 @@ int main(int argc, char** argv) {{
   ROS_INFO(\"Done!\");
   return EXIT_SUCCESS;
 
-}}
+}}\n""" + callbacks_implementation
 
-void callback_inertial(const sensor_msgs::Imu::ConstPtr& msg) {{
-
-  // Define local data structure
-  double timestamp;
-  Eigen::Vector3d wm;
-  Eigen::Vector3d am;
-
-  // Parse message to defined data structure
-  timestamp = msg->header.stamp.toSec();
-  wm << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
-  am << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
-
-  // Write your code here ...
-
-}} """
 	# Create and write file
 	create_write_file(package_path + "/src", f"{node}.cpp", content)
 	
+def implement_callbacks(callbacks_implementation, message) :
+
+	if message == "sensor_msgs/Imu" :
+		return callbacks_implementation + f"""
+  // Define local data structure
+  double timestamp;
+  Eigen::Vector3d w;
+  Eigen::Vector3d a;
+
+  // Parse message to defined data structure
+  timestamp = msg->header.stamp.toSec();
+  w << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
+  a << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
+
+  // Write your code here ..."""
+
+	elif message == "geometry_msgs/PoseStamped" :
+		return callbacks_implementation + f"""
+  // Define local data structure
+  double timestamp;
+  Eigen::Quaterniond q;
+  Eigen::Vector3d p;
+
+  // Parse message to defined data structure
+  timestamp = msg->header.stamp.toSec();
+  w << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+  q << msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z;
+
+  // Write your code here ..."""
+
+	elif message == "geometry_msgs/PoseStamped" :
+		return callbacks_implementation + f"""
+  // Define local data structure
+  double timestamp;
+  Eigen::Quaterniond q;
+  Eigen::Vector3d p;
+
+  // Parse message to defined data structure
+  timestamp = msg->header.stamp.toSec();
+  w << msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z;
+  q << msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z;
+
+  // Write your code here ..."""
 
 #
 # Main
 #
 
-if __name__ == "__main__":
+if __name__ == "__main__" :
 
 	# Parse input arguments
 	parser = argparse.ArgumentParser(description="Automatic setup of ROS (1) Wrapper")
@@ -466,6 +486,10 @@ if __name__ == "__main__":
 		for message in args.publish_messages :
 			publish_messages.append(message)
 
+	# Check lengths
+	assert len(subscribe_topics) == len(subscribe_messages)
+	assert len(publish_topics) == len(publish_messages)
+
 	# Visualize input arguments
 	print("\n----------------------------------------")
 	print(" Micro C++ - ROS1 Wrapper Template")
@@ -477,6 +501,7 @@ if __name__ == "__main__":
 	print(f" - Publish topics: {publish_topics}")
 	print(f" - Publish Messages: {publish_messages}")
 	print("----------------------------------------\n")
+	input("If everything is correct, press Enter to continue...")
 
 	# Create folder structure
 	package_path = workspace + "/src/" + package
