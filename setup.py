@@ -37,6 +37,7 @@ import os
 import argparse
 import datetime
 import itertools
+import subprocess
 
 #
 # Global variables
@@ -340,7 +341,7 @@ def write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscri
 		include_messages = list(set(subscribe_messages + publish_messages))
 		
 		# Define include section
-		includes = "#include <ros/ros.h>\n"
+		includes = "#include <ros/ros.h>\n#include <Eigen/Eigen>\n#include <opencv2/opencv.hpp>\n"
 		for message in include_messages :
 			includes += f"#include <{message}.h>\n"
 
@@ -354,7 +355,7 @@ def write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscri
 		for (topic, message) in zip(subscribe_topics, subscribe_messages) :
 			msg = message.split("/")
 			callbacks += f"void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg);\n"
-			callbacks_implementation += "void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg) {" + implement_callbacks(callbacks_implementation, message) + "\n\n}"
+			callbacks_implementation += f"void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg) {{" + implement_callbacks(message) + "\n\n}\n\n"
 			subscribers += f"  ros::Subscriber sub_{msg[1].lower()} = nh.subscribe({topic}, 999, callback_{msg[1].lower()});\n"
 
 	# Check if published topics exist
@@ -402,10 +403,11 @@ int main(int argc, char** argv) {{
 	# Create and write file
 	create_write_file(package_path + "/src", f"{node}.cpp", content)
 	
-def implement_callbacks(callbacks_implementation, message) :
+def implement_callbacks(message) :
 
 	if message == "sensor_msgs/Imu" :
-		return callbacks_implementation + f"""
+		return f"""
+
   // Define local data structure
   double timestamp;
   Eigen::Vector3d w;
@@ -419,7 +421,8 @@ def implement_callbacks(callbacks_implementation, message) :
   // Write your code here ..."""
 
 	elif message == "geometry_msgs/PoseStamped" :
-		return callbacks_implementation + f"""
+		return f"""
+
   // Define local data structure
   double timestamp;
   Eigen::Quaterniond q;
@@ -432,8 +435,9 @@ def implement_callbacks(callbacks_implementation, message) :
 
   // Write your code here ..."""
 
-	elif message == "geometry_msgs/PoseStamped" :
-		return callbacks_implementation + f"""
+	elif message == "geometry_msgs/PoseWithCovarianceStamped" :
+		return f"""
+
   // Define local data structure
   double timestamp;
   Eigen::Quaterniond q;
@@ -446,6 +450,28 @@ def implement_callbacks(callbacks_implementation, message) :
 
   // Write your code here ..."""
 
+	elif message == "sensor_msgs/Image" :
+		return f"""
+
+  // Get the image from cv bridge
+  cv_bridge::CvImageConstPtr cv_ptr;
+  try {{
+    cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
+  }} catch (cv_bridge::Exception &e) {{
+    ROS_ERROR("cv_bridge exception: %s", e.what());
+    return;
+  }}
+
+  // Define local data structure
+  double timestamp;
+  cv::Mat image;
+
+  // Parse message to defined data structure
+  timestamp = cv_ptr->header.stamp.toSec();
+  image = cv_ptr->image.clone();
+
+  // Write your code here ..."""
+
 #
 # Main
 #
@@ -454,7 +480,7 @@ if __name__ == "__main__" :
 
 	# Parse input arguments
 	parser = argparse.ArgumentParser(description="Automatic setup of ROS (1) Wrapper")
-	parser.add_argument('-w', '--workspace', help='Path of the workspace to be created', default="~/cws")
+	parser.add_argument('-w', '--workspace', help='Path of the workspace to be created', default='~/cws')
 	parser.add_argument('-p', '--package', help='Name of the ROS package', default="not specified", required=True)
 	parser.add_argument('-n', '--node', help='Name of the ROS node', default="not specified", required=True)
 	parser.add_argument('-st', '--subscribe_topics', help='Array of topics (topic_1 topic_2 ... topic_N) to subscribe on', nargs='+')
@@ -512,6 +538,9 @@ if __name__ == "__main__" :
 	# Create folder structure
 	create_folder_structure(package_path)
 
+	# Init workspace
+	subprocess.run("catkin init", cwd=os.path.expanduser(workspace), shell=True, stdout=subprocess.DEVNULL)
+
 	# Create and write package.xml
 	write_package_xml(package, package_path)
 
@@ -520,3 +549,6 @@ if __name__ == "__main__" :
 
 	# Create and write node.cpp
 	write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscribe_messages, publish_messages)
+
+	# Source and build the workspace	
+	#subprocess.run("catkin build", cwd=os.path.expanduser(workspace), shell=True)#, stdout=subprocess.DEVNULL)
