@@ -69,12 +69,12 @@ def create_folder_structure(package_path) :
 	os.makedirs(package_path + "/include", exist_ok=True)
 	os.makedirs(package_path + "/launch", exist_ok=True)
 
-def write_package_xml(package, package_path) :
+def write_package_xml(package, node, package_path) :
 
 	# Define file content
 	content = f"""<?xml version=\"1.0\"?>
 <package format=\"2\">
-  <name>{USER}</name>
+  <name>{node}</name>
   <version>0.0.1</version>
   <description>The {package} package</description>
 
@@ -107,8 +107,8 @@ def write_package_xml(package, package_path) :
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>dynamic_reconfigure</depend>
-  <build_depend>message_generation</build_depend>
-  <exec_depend>message_runtime</exec_Depend>
+  <!-- <build_depend>message_generation</build_depend>
+  <exec_depend>message_runtime</exec_Depend> -->
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
@@ -170,36 +170,36 @@ message(STATUS \"BOOST VERSION: \" ${{Boost_VERSION}})
 ################################################
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  DIRECTORY msg
+# add_message_files(
+#  DIRECTORY msg
 #  FILES Message1.msg Message2.msg
-)
+# )
 
 ## Generate services in the 'srv' folder
-add_service_files(
-  DIRECTORY srv
+# add_service_files(
+#  DIRECTORY srv
 #  FILES Service1.srv Service2.srv
-)
+# )
 
 ## Generate actions in the 'action' folder
-add_action_files(
-  DIRECTORY act
+# add_action_files(
+#  DIRECTORY act
 #  FILES Action1.action Action2.action
-)
+# )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES std_msgs nav_msgs sensor_msgs geometry_msgs
-)
+# generate_messages(
+#   DEPENDENCIES std_msgs nav_msgs sensor_msgs geometry_msgs
+# )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
 ################################################
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
-generate_dynamic_reconfigure_options(
+# generate_dynamic_reconfigure_options(
 #  cfg/DynReconf1.cfg cfg/DynReconf2.cfg
-)
+# )
 
 ###################################
 ## catkin specific configuration ##
@@ -212,7 +212,7 @@ generate_dynamic_reconfigure_options(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS message_runtime std_msgs nav_msgs sensor_msgs geometry_msgs
+  CATKIN_DEPENDS std_msgs nav_msgs sensor_msgs geometry_msgs #message_runtime
 #  LIBRARIES custom_libraries
 #  DEPENDS system_lib
 )
@@ -257,7 +257,7 @@ add_executable(${{PROJECT_NAME}}_{node} src/{node}.cpp)
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
 ## e.g. \"rosrun someones_pkg node\" instead of \"rosrun someones_pkg someones_pkg_node\"
-set_target_properties(${{PROJECT_NAME}}_{node} PROPERTIES OUTPUT_NAME {node} PREFIX)
+set_target_properties(${{PROJECT_NAME}}_{node} PROPERTIES OUTPUT_NAME {node} PREFIX \"\")
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -356,7 +356,7 @@ def write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscri
 			msg = message.split("/")
 			callbacks += f"void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg);\n"
 			callbacks_implementation += f"void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg) {{" + implement_callbacks(message) + "\n\n}\n\n"
-			subscribers += f"  ros::Subscriber sub_{msg[1].lower()} = nh.subscribe({topic}, 999, callback_{msg[1].lower()});\n"
+			subscribers += f"  ros::Subscriber sub_{msg[1].lower()} = nh.subscribe(\"{topic}\", 1, callback_{msg[1].lower()});\n"
 
 	# Check if published topics exist
 	if publish_topics != None and publish_messages != None :
@@ -367,7 +367,7 @@ def write_node_cpp(package_path, node, subscribe_topics, publish_topics, subscri
 		ros_messages = "\n\n  // Ros messages\n"
 		publish = "\n  // Publish\n"
 		for (topic, message) in zip(publish_topics, publish_messages) :
-			publishers += f"  pub{topic.replace('/','_')} = nh.advertise<{message.replace('/','::')}>(\"{topic}\", 10);"
+			publishers += f"  pub{topic.replace('/','_')} = nh.advertise<{message.replace('/','::')}>(\"{topic}\", 1);"
 			publishers_echo += f"  ROS_INFO(\"Publishing: %s\", pub{topic.replace('/','_')}.getTopic().c_str());\n"
 			ros_messages += f"  {message.replace('/','::')} msg{topic.replace('/','_')}\n"
 			publish += f"  pub{topic.replace('/','_')}.publish(msg{topic.replace('/','_')})\n"
@@ -480,7 +480,7 @@ if __name__ == "__main__" :
 
 	# Parse input arguments
 	parser = argparse.ArgumentParser(description="Automatic setup of ROS (1) Wrapper")
-	parser.add_argument('-w', '--workspace', help='Path of the workspace to be created', default='~/cws')
+	parser.add_argument('-w', '--workspace', help='Path of the workspace to be created, it can be an already existing workspace', default='~/cws')
 	parser.add_argument('-p', '--package', help='Name of the ROS package', default="not specified", required=True)
 	parser.add_argument('-n', '--node', help='Name of the ROS node', default="not specified", required=True)
 	parser.add_argument('-st', '--subscribe_topics', help='Array of topics (topic_1 topic_2 ... topic_N) to subscribe on', nargs='+')
@@ -527,6 +527,12 @@ if __name__ == "__main__" :
 	print(f" - Publish topics: {publish_topics}")
 	print(f" - Publish Messages: {publish_messages}")
 	print("----------------------------------------\n")
+	print(" Supported message types:")
+	print(" - sensor_msgs/Imu")
+	print(" - sensor_msgs/Image")
+	print(" - geometry_msgs/PoseWithCovarianceStamped")
+	print(" - geometry_msgs/PoseStamped")
+	print("----------------------------------------\n")
 	input("If everything is correct, press Enter to continue...")
 
 	# Create folder structure
@@ -542,7 +548,7 @@ if __name__ == "__main__" :
 	subprocess.run("catkin init", cwd=os.path.expanduser(workspace), shell=True, stdout=subprocess.DEVNULL)
 
 	# Create and write package.xml
-	write_package_xml(package, package_path)
+	write_package_xml(package, node, package_path)
 
 	# Create and write CMakeList.txt
 	write_CMakeLists(package, package_path, node)
