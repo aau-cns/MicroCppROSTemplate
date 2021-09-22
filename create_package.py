@@ -287,6 +287,7 @@ if __name__ == "__main__" :
 	general_dict["PUBLISH"] = publish
 	general_dict["CALLBACKS_DEFINITION"] = callbacks_def
 	general_dict["CALLBACKS_IMPLEMENTATION"] = callbacks_impl
+	general_dict["LICENSE_SW_NAME"] = node
 	
 	##############################
 	# Create structure and files #
@@ -302,10 +303,10 @@ if __name__ == "__main__" :
 	# Init workspace
 	subprocess.run("catkin init", cwd=os.path.expanduser(workspace), shell=True, stdout=subprocess.DEVNULL)
 
-	# Copy LICENSE
+	# Create and write LICENSE
 	license_template_path = script_path + "/resources/LICENSE"
 	license_path = package_path + "/LICENSE"
-	subprocess.run("cp " + license_template_path + " " + license_path, cwd=os.path.expanduser(script_path), shell=True, stdout=subprocess.DEVNULL)
+	create_from_template(license_template_path, general_dict, license_path)
 	
 	# Create and write package.xml
 	package_xml_template_path = script_path + "/templates/ros/package.xml.tmpl"
