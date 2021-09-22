@@ -3,7 +3,7 @@
 ---
 
 This script will allow to create from scratch a ROS1 workspace to be used with roscpp.
-The scripts automatically create the folder structure, init the workspace and write the source files.
+The scripts automatically create the folder structure, init the workspace, write the source files and build it
 Both oop based development or simple (single) node type are supported.
 
 ---

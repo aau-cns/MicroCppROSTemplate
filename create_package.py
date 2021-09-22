@@ -134,6 +134,10 @@ if __name__ == "__main__" :
 	if args.publish_messages != None :
 		for message in args.publish_messages :
 			publish_messages.append(str(message))
+	
+	# Define class name if oop
+	if (node_type == "oop") :	
+		class_name = ''.join(word.title() for word in re.sub('[^A-Za-z0-9]+', '_', node.lower()).split('_'))
 
 	##################
 	# Load from file #
@@ -230,6 +234,7 @@ if __name__ == "__main__" :
 		# Define subscribers and callbacks for each subscribed topic
 		callbacks_def = str()
 		callbacks_impl = str()
+		callbacks_impl_oop = str()
 		subscribers_def = str()
 		subscribers_impl = str()
 		subscribers_full = str()
@@ -239,10 +244,11 @@ if __name__ == "__main__" :
 			msg = message.split("/")
 			callbacks_def += f"void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg);\n"
 			callbacks_impl += f"void callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg) {{\n\n  // Write your code here ...\n\n}}\n\n"
+			callbacks_impl_oop += f"void {class_name}::callback_{msg[1].lower()}(const {msg[0]}::{msg[1]}::ConstPtr& msg) {{\n\n  // Write your code here ...\n\n}}\n\n"
 			subscribers_def += f"ros::Subscriber sub_{msg[1].lower()};\n"
-			subscribers_impl += f"sub_{msg[1].lower()} = nh.subscribe(\"{topic}\", 1, callback_{msg[1].lower()});\n"
+			subscribers_impl += f"sub_{msg[1].lower()} = nh.subscribe(\"{topic}\", 1, &{class_name}::callback_{msg[1].lower()}, this);\n"
 			subscribers_full += f"ros::Subscriber sub_{msg[1].lower()} = nh.subscribe(\"{topic}\", 1, callback_{msg[1].lower()});\n"
-			subscribers_echo += f"std::cout \"Subscribing: \" << sub_{msg[1].lower()}.getTopic().c_str()) << std::endl;\n"
+			subscribers_echo += f"std::cout << \"Subscribing: \" << sub_{msg[1].lower()}.getTopic().c_str() << std::endl;\n"
 			subscribers_echo_ros += f"ROS_INFO(\"Subscribing: %s\", sub_{msg[1].lower()}.getTopic().c_str());\n"
 	
 	# Check if published topics exist
@@ -260,7 +266,7 @@ if __name__ == "__main__" :
 			publishers_def += f"ros::Publisher pub{topic.replace('/','_')};\n"
 			publishers_impl += f"pub{topic.replace('/','_')} = nh.advertise<{message.replace('/','::')}>(\"{topic}\", 1);\n"
 			publishers_full += f"ros::Publisher pub{topic.replace('/','_')} = nh.advertise<{message.replace('/','::')}>(\"{topic}\", 1);\n"
-			publishers_echo += f"std::cout \"Publishing: \" << pub{topic.replace('/','_')}.getTopic().c_str()) << std::endl;\n"
+			publishers_echo += f"std::cout << \"Publishing: \" << pub{topic.replace('/','_')}.getTopic().c_str() << std::endl;\n"
 			publishers_echo_ros += f"ROS_INFO(\"Publishing: %s\", pub{topic.replace('/','_')}.getTopic().c_str());\n"
 			ros_messages += f"{message.replace('/','::')} msg{topic.replace('/','_')};\n"
 			publish += f"pub{topic.replace('/','_')}.publish(msg{topic.replace('/','_')});\n"
@@ -272,9 +278,10 @@ if __name__ == "__main__" :
 		general_dict["SUBSCRIBERS"] = subscribers_full
 		general_dict["PUBLISHERS_ECHO"] = publishers_echo_ros
 		general_dict["SUBSCRIBERS_ECHO"] = subscribers_echo_ros
+		general_dict["CALLBACKS_IMPLEMENTATION"] = callbacks_impl
 	elif node_type == "oop" :
 		general_dict["EXECUTABLES"] = f"src/{node}.cpp src/{node}_node.cpp"
-		general_dict["NODE_INCLUDES"] = general_dict["NODE_INCLUDES"] + f"\n#include \"utils/colors.hpp\"\n#include \"{node}.hpp>\"\n"
+		general_dict["NODE_INCLUDES"] = general_dict["NODE_INCLUDES"] + f"\n#include \"utils/colors.hpp\"\n#include \"{node}.hpp\"\n"
 		general_dict["HEADER_INCLUDES"] = general_dict["HEADER_INCLUDES"] + additional_includes
 		general_dict["PUBLISHERS_DEF"] = publishers_def
 		general_dict["SUBSCRIBERS_DEF"] = subscribers_def
@@ -282,11 +289,11 @@ if __name__ == "__main__" :
 		general_dict["SUBSCRIBERS_IMPL"] = subscribers_impl
 		general_dict["PUBLISHERS_ECHO"] = publishers_echo
 		general_dict["SUBSCRIBERS_ECHO"] = subscribers_echo
-		general_dict["CLASS_NAME"] = ''.join(word.title() for word in re.sub('[^A-Za-z0-9]+', '_', node.lower()).split('_'))
+		general_dict["CLASS_NAME"] = class_name
+		general_dict["CALLBACKS_IMPLEMENTATION"] = callbacks_impl_oop
 	general_dict["MESSAGES"] = ros_messages
 	general_dict["PUBLISH"] = publish
 	general_dict["CALLBACKS_DEFINITION"] = callbacks_def
-	general_dict["CALLBACKS_IMPLEMENTATION"] = callbacks_impl
 	general_dict["LICENSE_SW_NAME"] = node
 	
 	##############################
@@ -340,4 +347,4 @@ if __name__ == "__main__" :
 		create_from_template(source_template_path, general_dict, source_path)
 	
 	# Source and build the workspace	
-	#subprocess.run("catkin build", cwd=os.path.expanduser(workspace), shell=True)#, stdout=subprocess.DEVNULL)
+	subprocess.run("catkin build", cwd=os.path.expanduser(workspace), shell=True)#, stdout=subprocess.DEVNULL)
