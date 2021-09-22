@@ -1,0 +1,39 @@
+${HEADER}
+
+${NODE_INCLUDES}
+
+// Main function
+int main(int argc, char** argv) {
+
+
+  // Launch ros node
+  ros::init(argc, argv, "${NODE_NAME}");
+  ros::NodeHandle nh("~");
+
+  
+  // Parameters from launchfile
+  std::string param;
+
+
+  // Check existance of parameter
+  if(!nh.getParam("param", param)) {
+    std::cout << std::endl;
+    ROS_ERROR("No param defined");
+    std::exit(EXIT_FAILURE);
+  }
+
+
+  // Instanciate ${CLASS_NAME}
+  ${CLASS_NAME} ${CLASS_NAME}(nh);
+
+  
+  // ROS Spin
+  ros::spin();
+
+
+  // Done!
+  std::cout << std::endl;
+  ROS_INFO("Done!");
+  return EXIT_SUCCESS;
+
+}

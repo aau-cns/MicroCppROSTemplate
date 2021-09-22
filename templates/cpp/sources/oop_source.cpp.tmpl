@@ -1,0 +1,31 @@
+${HEADER}
+
+${NODE_INCLUDES}
+
+
+${CLASS_NAME}::${CLASS_NAME}(ros::NodeHandle &nh) :
+  nh_(nh) {
+  
+  
+  // Subscribers
+  ${SUBSCRIBERS_IMPL}
+  
+  // Print topics where we are subscribing to
+  std::cout << std::endl;
+  ${SUBSCRIBERS_ECHO}
+  
+  // Publishers
+  ${PUBLISHERS_IMPL}
+  
+  // Print topics where we are publishing on
+  std::cout << std::endl;
+  ${PUBLISHERS_ECHO}
+
+  // Write your code here...
+  
+}
+
+
+${CALLBACKS_IMPLEMENTATION}
+
+

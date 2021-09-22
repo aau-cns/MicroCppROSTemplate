@@ -1,0 +1,61 @@
+${HEADER}
+
+${NODE_INCLUDES}
+
+// Callback functions
+${CALLBACKS_DEFINITION}
+
+// Main function
+int main(int argc, char** argv) {
+
+
+  // Launch ros node
+  ros::init(argc, argv, "${NODE_NAME}");
+  ros::NodeHandle nh("~");
+
+
+  // Subscribers
+  ${SUBSCRIBERS}
+  
+  // Print topics where we are subscribing to
+  std::cout << std::endl;
+  ${SUBSCRIBERS_ECHO}
+  
+  // Publishers
+  ${PUBLISHERS}
+  
+  // Print topics where we are publishing on
+  std::cout << std::endl;
+  ${PUBLISHERS_ECHO}
+  
+  // Parameters from launchfile
+  std::string param;
+
+
+  // Check existance of parameter
+  if(!nh.getParam("param", param)) {
+    std::cout << std::endl;
+    ROS_ERROR("No param defined");
+    std::exit(EXIT_FAILURE);
+  }
+
+
+  // Ros messages
+  ${MESSAGES}
+  
+  // Publish
+  ${PUBLISH}
+  
+  // ROS Spin
+  ros::spin();
+
+
+  // Done!
+  std::cout << std::endl;
+  ROS_INFO("Done!");
+  return EXIT_SUCCESS;
+
+}
+
+
+${CALLBACKS_IMPLEMENTATION}

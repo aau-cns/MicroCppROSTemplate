@@ -1,0 +1,46 @@
+${HEADER}
+
+#ifndef ${NODE_NAME}_H
+#define ${NODE_NAME}_H
+
+
+${HEADER_INCLUDES}
+
+class ${CLASS_NAME} {
+
+
+  public:
+
+
+  /**
+   * @brief Constructor
+   * @param Ros NodeHandle
+   */
+  ${CLASS_NAME}(ros::NodeHandle &nh);
+
+
+  private:
+
+
+  /**
+   * @brief Callbacks
+   * @param Message const pointer
+   */
+  ${CALLBACKS_DEFINITION}
+
+  /// Ros node handler
+  ros::NodeHandle nh_;
+
+
+  /// Subscribers
+  ${SUBSCRIBERS_DEF}
+
+  /// Publishers
+  ${PUBLISHERS_DEF}
+
+  /// Messages
+  ${MESSAGES}
+
+};
+
+#endif  // ${NODE_NAME}_H
